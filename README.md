@@ -26,8 +26,8 @@ This starter kit is designed to help developers quickly understand and implement
 ### 1. Clone the Repository
 
 ```bash
-git clone TODO
-cd TODO
+git clone https://github.com/recallai/real-time-event-starter-kit.git
+cd real-time-event-starter-kit
 ```
 
 ### 2. Install Dependencies
