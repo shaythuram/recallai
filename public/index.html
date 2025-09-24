@@ -224,7 +224,13 @@
             eventsToRequest.includes("transcript.partial_data")
           ) {
             payload.recording_config.transcript = {
-              provider: { meeting_captions: {} },
+              provider: {
+                recallai_streaming: {
+                  language_code: "en",
+                  filter_profanity: false,
+                  mode: "prioritize_low_latency",
+                },
+              },
             };
           }
           if (eventsToRequest.includes("video_separate_png.data")) {

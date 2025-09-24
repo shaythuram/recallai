@@ -64,6 +64,22 @@ app.get("/", (req: express.Request, res: express.Response) => {
   res.sendFile(path.join(__dirname, "..", "public", "index.html"));
 });
 
+app.get("/transcriptions", (req: express.Request, res: express.Response) => {
+  res.sendFile(path.join(__dirname, "..", "public", "transcriptions.html"));
+});
+
+// Lightweight endpoint to verify the UI WebSocket broadcast channel
+// Visit http://localhost:3000/ui-test to send a test message to all /ui-updates clients
+app.get("/ui-test", (req: express.Request, res: express.Response) => {
+  const testPayload = {
+    path: req.path,
+    from: "ui-test",
+    at: new Date().toISOString(),
+  };
+  broadcastToUIClients("UI test broadcast from /ui-test", testPayload);
+  res.json({ ok: true, broadcasted: testPayload });
+});
+
 // --- Recall.ai API Interaction Endpoint ---
 // Handles requests from the browser UI to send a bot to a meeting via Recall.ai API
 const sendBotHandler: AsyncRequestHandler = async (req, res, next) => {
@@ -84,7 +100,7 @@ const sendBotHandler: AsyncRequestHandler = async (req, res, next) => {
   }
 
   try {
-    const recallApiUrl = "https://us-east-1.recall.ai/api/v1/bot"; // Recall.ai endpoint to create a bot
+    const recallApiUrl = "https://us-west-2.recall.ai/api/v1/bot"; // Recall.ai endpoint to create a bot
 
     // Prepare the payload for the Recall.ai API
     const payload: any = {

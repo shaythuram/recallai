@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Recall.ai Transcriptions - Live View</title>
+    <link rel="stylesheet" href="style.css" />
+    <style>
+      .transcriptions-container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+      .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+      .nav-btn { padding: 8px 14px; background: #007bff; color: #fff; text-decoration: none; border-radius: 6px; }
+      .status { display:flex; align-items:center; gap:8px; margin-bottom: 16px; }
+      .dot { width: 10px; height: 10px; border-radius: 50%; background: #6c757d; }
+      .dot.connected { background: #28a745; }
+      .controls { display:flex; gap:10px; margin-bottom: 12px; }
+      .control-btn { padding: 6px 12px; border: 1px solid #d0d7de; border-radius: 6px; background: #fff; cursor: pointer; }
+      .log { background:#0f172a; color:#e2e8f0; height:70vh; overflow:auto; padding:16px; border-radius:8px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:12px; }
+      .entry { padding:10px; border-left:3px solid #334155; background: rgba(255,255,255,0.03); border-radius: 4px; margin-bottom:10px; }
+      .entry .ts { color:#94a3b8; font-weight:600; margin-right:8px; }
+      .entry .data { white-space: pre-wrap; background: rgba(0,0,0,0.25); margin-top:8px; padding:8px; border-radius:4px; }
+      .parsed { margin: 16px 0; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; }
+      .parsed h3 { margin: 0 0 8px 0; font-size: 16px; color: #0f172a; }
+      .parsed-line { padding: 6px 8px; background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 6px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji"; color: #111827; }
+    </style>
+  </head>
+  <body>
+    <div class="transcriptions-container">
+      <div class="page-header">
+        <h1>📝 Live Transcriptions</h1>
+        <a class="nav-btn" href="/">← Back</a>
+      </div>
+
+      <div class="status">
+        <span id="statusDot" class="dot"></span>
+        <span id="statusText">Disconnected</span>
+        <span style="margin-left:auto;">Messages: <strong id="msgCount">0</strong></span>
+      </div>
+
+      <div class="controls">
+        <button id="clearBtn" class="control-btn">Clear</button>
+        <button id="toggleScrollBtn" class="control-btn">Auto scroll: ON</button>
+      </div>
+
+      <div class="parsed">
+        <h3>Parsed Transcript Lines</h3>
+        <div id="parsedLines"></div>
+      </div>
+
+      <div id="log" class="log"></div>
+    </div>
+
+    <script>
+      const logEl = document.getElementById('log');
+      const statusDot = document.getElementById('statusDot');
+      const statusText = document.getElementById('statusText');
+      const clearBtn = document.getElementById('clearBtn');
+      const toggleScrollBtn = document.getElementById('toggleScrollBtn');
+      const msgCount = document.getElementById('msgCount');
+      const parsedLines = document.getElementById('parsedLines');
+
+      let autoScroll = true;
+      let count = 0;
+
+      function setStatus(state, text) {
+        statusDot.classList.remove('connected');
+        if (state === 'connected') statusDot.classList.add('connected');
+        statusText.textContent = text;
+      }
+
+      function ts() { return new Date().toLocaleTimeString(); }
+
+      function renderParsedTranscript(message) {
+        try {
+          // Handle transcript.data events - the actual transcript data is in message.data
+          let transcriptData = null;
+          
+          // Check if this is a transcript event
+          if (message.log && message.log.includes('transcript') && message.data) {
+            transcriptData = message.data;
+          } else if (message.data && message.data.words && message.data.participant) {
+            // Direct transcript data
+            transcriptData = message.data;
+          }
+          
+          if (!transcriptData) return;
+          
+          const words = Array.isArray(transcriptData.words) ? transcriptData.words : [];
+          if (words.length === 0) return;
+          
+          const text = words.map(w => (w && w.text ? String(w.text) : '')).filter(Boolean).join(' ').trim();
+          if (!text) return;
+          
+          const name = (transcriptData.participant && (transcriptData.participant.name || transcriptData.participant.id)) || 'Unknown';
+          const line = document.createElement('div');
+          line.className = 'parsed-line';
+          line.textContent = `${name} : ${text}`;
+          parsedLines.appendChild(line);
+          
+          // Auto scroll the parsed section too
+          if (autoScroll) {
+            parsedLines.scrollTop = parsedLines.scrollHeight;
+          }
+        } catch (e) { 
+          console.error('Error parsing transcript:', e);
+        }
+      }
+
+      function addEntry(message) {
+        const div = document.createElement('div');
+        div.className = 'entry';
+        const head = document.createElement('div');
+        head.innerHTML = `<span class="ts">[${ts()}]</span>${message.log || 'Message'}`;
+        div.appendChild(head);
+        if (message.data) {
+          const dataEl = document.createElement('div');
+          dataEl.className = 'data';
+          dataEl.textContent = typeof message.data === 'string' ? message.data : JSON.stringify(message.data, null, 2);
+          div.appendChild(dataEl);
+        }
+        logEl.appendChild(div);
+        // Attempt to parse a transcript line for every message; it's a no-op if not a transcript
+        renderParsedTranscript(message);
+        count++; msgCount.textContent = count;
+        if (autoScroll) logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      clearBtn.addEventListener('click', () => { logEl.innerHTML = ''; count = 0; msgCount.textContent = '0'; });
+      toggleScrollBtn.addEventListener('click', () => { autoScroll = !autoScroll; toggleScrollBtn.textContent = `Auto scroll: ${autoScroll ? 'ON' : 'OFF'}`; });
+
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(`${proto}//${window.location.host}/ui-updates`);
+      ws.onopen = () => setStatus('connected', 'Connected');
+      ws.onmessage = (e) => {
+        try { addEntry(JSON.parse(e.data)); } catch { addEntry({ log: 'Raw', data: e.data }); }
+      };
+      ws.onerror = () => setStatus('', 'Error');
+      ws.onclose = () => setStatus('', 'Disconnected');
+    </script>
+  </body>
+</html>
+
+
