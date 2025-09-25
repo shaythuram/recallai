@@ -207,15 +207,34 @@ app.post("/send-bot", sendBotHandler);
 // --- End Recall.ai API Interaction Endpoint ---
 
 // --- WebSocket Server for Recall.ai Bot Connections ---
-// This server listens for incoming WebSocket connections from the Recall.ai bot after it has joined a meeting.
-// It receives real-time events (audio, video, transcripts) from the bot.
-const recallBotWss = new WebSocket.Server({ port: websocketPort });
+// Cloud-friendly: expose Recall Bot WS on the same HTTP server via path '/recall-bot'
+// This avoids the need for a separate public domain/port.
+const recallBotWss = new WebSocket.Server({ noServer: true });
 
-recallBotWss.on("listening", () => {
-  const listenMsg = `Recall Bot WebSocket server is listening on port ${websocketPort}`;
-  console.log(listenMsg);
-  broadcastToUIClients(listenMsg);
+// Upgrade handler to route WS connections based on URL path
+server.on("upgrade", (request, socket, head) => {
+  try {
+    const requestUrl = new URL(request.url || "", `http://${request.headers.host}`);
+    const pathname = requestUrl.pathname || "/";
+
+    if (pathname === "/recall-bot") {
+      recallBotWss.handleUpgrade(request, socket, head, (ws) => {
+        recallBotWss.emit("connection", ws, request);
+      });
+      return;
+    }
+
+    // If not handled here, destroy to avoid hanging sockets
+    socket.destroy();
+  } catch {
+    socket.destroy();
+  }
 });
+
+// Inform UI that single-port WS endpoint is ready
+const listenMsg = `Recall Bot WebSocket server is available at path /recall-bot on the HTTP server (port ${expressPort})`;
+console.log(listenMsg);
+broadcastToUIClients(listenMsg);
 
 recallBotWss.on("connection", (ws) => {
   const connectedMsg =
