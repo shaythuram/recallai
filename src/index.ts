@@ -30,9 +30,9 @@ const server = http.createServer(app);
 const uiWss = new WebSocket.Server({ server, path: "/ui-updates" });
 let uiClients = new Set<WebSocket>();
 
-// --- Additional WebSocket Servers for Ports 4000 and 5000 ---
-const additionalWss4000 = new WebSocket.Server({ port: additionalPort4000 });
-const additionalWss5000 = new WebSocket.Server({ port: additionalPort5000 });
+// --- Additional WebSocket Servers (now on same port with different paths) ---
+const additionalWss4000 = new WebSocket.Server({ noServer: true });
+const additionalWss5000 = new WebSocket.Server({ noServer: true });
 let additionalClients4000 = new Set<WebSocket>();
 let additionalClients5000 = new Set<WebSocket>();
 
@@ -82,40 +82,29 @@ uiWss.on("connection", (ws) => {
 });
 
 // --- Additional WebSocket Server Event Handlers ---
-// Port 4000 WebSocket server
-additionalWss4000.on("listening", () => {
-  console.log(`Additional WebSocket server is listening on port ${additionalPort4000}`);
-  broadcastToUIClients(`Additional WebSocket server started on port ${additionalPort4000}`);
-});
-
+// Additional WebSocket servers (now on same port with different paths)
 additionalWss4000.on("connection", (ws) => {
   additionalClients4000.add(ws);
-  console.log("WebSocket client connected to port 4000");
-  broadcastToUIClients("New client connected to port 4000");
+  console.log("WebSocket client connected to /ws-4000");
+  broadcastToUIClients("New client connected to /ws-4000");
 
   ws.on("close", () => {
     additionalClients4000.delete(ws);
-    console.log("WebSocket client disconnected from port 4000");
+    console.log("WebSocket client disconnected from /ws-4000");
   });
-  ws.on("error", (error) => console.error("WebSocket error (port 4000):", error));
-});
-
-// Port 5000 WebSocket server
-additionalWss5000.on("listening", () => {
-  console.log(`Additional WebSocket server is listening on port ${additionalPort5000}`);
-  broadcastToUIClients(`Additional WebSocket server started on port ${additionalPort5000}`);
+  ws.on("error", (error) => console.error("WebSocket error (/ws-4000):", error));
 });
 
 additionalWss5000.on("connection", (ws) => {
   additionalClients5000.add(ws);
-  console.log("WebSocket client connected to port 5000");
-  broadcastToUIClients("New client connected to port 5000");
+  console.log("WebSocket client connected to /ws-5000");
+  broadcastToUIClients("New client connected to /ws-5000");
 
   ws.on("close", () => {
     additionalClients5000.delete(ws);
-    console.log("WebSocket client disconnected from port 5000");
+    console.log("WebSocket client disconnected from /ws-5000");
   });
-  ws.on("error", (error) => console.error("WebSocket error (port 5000):", error));
+  ws.on("error", (error) => console.error("WebSocket error (/ws-5000):", error));
 });
 // --- End Additional WebSocket Server Event Handlers ---
 // --- End UI WebSocket Server Setup ---
@@ -222,6 +211,16 @@ server.on("upgrade", (request, socket, head) => {
         recallBotWss.emit("connection", ws, request);
       });
       return;
+    } else if (pathname === "/ws-4000") {
+      additionalWss4000.handleUpgrade(request, socket, head, (ws) => {
+        additionalWss4000.emit("connection", ws, request);
+      });
+      return;
+    } else if (pathname === "/ws-5000") {
+      additionalWss5000.handleUpgrade(request, socket, head, (ws) => {
+        additionalWss5000.emit("connection", ws, request);
+      });
+      return;
     }
 
     // If not handled here, destroy to avoid hanging sockets
@@ -323,15 +322,15 @@ recallBotWss.on("connection", (ws) => {
 });
 // --- End WebSocket Server for Recall.ai Bot Connections ---
 
-// Start the HTTP server (which also hosts the UI WebSocket server)
+// Start the HTTP server (which hosts all WebSocket servers)
 server.listen(expressPort, () => {
-  const serverStartMsg = `HTTP server with UI WebSocket is running at http://localhost:${expressPort}`;
+  const serverStartMsg = `HTTP server with all WebSocket services is running at http://localhost:${expressPort}`;
   console.log(serverStartMsg);
   broadcastToUIClients(serverStartMsg);
   broadcastToUIClients(
-    `Connect your Recall.ai bot WebSocket to: ws://YOUR_PUBLIC_IP_OR_NGROK_URL:${websocketPort}`
+    `Connect your Recall.ai bot WebSocket to: wss://YOUR_DOMAIN/recall-bot`
   );
   broadcastToUIClients(
-    `Additional WebSocket servers available at: ws://localhost:${additionalPort4000} and ws://localhost:${additionalPort5000}`
+    `Additional WebSocket servers available at: wss://YOUR_DOMAIN/ws-4000 and wss://YOUR_DOMAIN/ws-5000`
   );
 });
