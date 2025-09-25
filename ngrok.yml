@@ -1,0 +1,12 @@
+version: "2"
+authtoken: 2TsAE8mGVm1C66hhtM6taCvAkDU_3pPPvWgzwosiu8xQ3rBct
+tunnels:
+  recall-bot:
+    proto: http
+    addr: 3456
+  web:
+    proto: http
+    addr: 3000
+  api:
+    proto: http
+    addr: 4001
