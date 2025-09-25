@@ -18,10 +18,11 @@ import {
 dotenv.config();
 
 const app: express.Express = express();
-const expressPort = parseInt(process.env.PORT || "3000");
-const websocketPort = parseInt(process.env.WEBSOCKET_PORT || "3456");
-const additionalPort4000 = 4001;
-const additionalPort5000 = 5001;
+// Hardcoded ports for Railway deployment
+const expressPort = 3000;
+const websocketPort = 3456; // Not used anymore, but kept for reference
+const additionalPort4000 = 4001; // Not used anymore, but kept for reference
+const additionalPort5000 = 5001; // Not used anymore, but kept for reference
 
 const server = http.createServer(app);
 
@@ -324,7 +325,7 @@ recallBotWss.on("connection", (ws) => {
 
 // Start the HTTP server (which hosts all WebSocket servers)
 server.listen(expressPort, () => {
-  const serverStartMsg = `HTTP server with all WebSocket services is running at http://localhost:${expressPort}`;
+  const serverStartMsg = `HTTP server with all WebSocket services is running on port ${expressPort}`;
   console.log(serverStartMsg);
   broadcastToUIClients(serverStartMsg);
   broadcastToUIClients(
