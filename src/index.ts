@@ -20,6 +20,8 @@ dotenv.config();
 const app: express.Express = express();
 const expressPort = parseInt(process.env.PORT || "3000");
 const websocketPort = parseInt(process.env.WEBSOCKET_PORT || "3456");
+const additionalPort4000 = 4001;
+const additionalPort5000 = 5001;
 
 const server = http.createServer(app);
 
@@ -28,6 +30,12 @@ const server = http.createServer(app);
 const uiWss = new WebSocket.Server({ server, path: "/ui-updates" });
 let uiClients = new Set<WebSocket>();
 
+// --- Additional WebSocket Servers for Ports 4000 and 5000 ---
+const additionalWss4000 = new WebSocket.Server({ port: additionalPort4000 });
+const additionalWss5000 = new WebSocket.Server({ port: additionalPort5000 });
+let additionalClients4000 = new Set<WebSocket>();
+let additionalClients5000 = new Set<WebSocket>();
+
 // Function to send a message to all connected browser UI clients
 function broadcastToUIClients(logMessage: string, data?: any) {
   const message = JSON.stringify({
@@ -35,26 +43,81 @@ function broadcastToUIClients(logMessage: string, data?: any) {
     data: data,
     timestamp: new Date().toISOString(),
   });
+  
+  // Send to main UI clients (port 3000)
   uiClients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
       client.send(message);
     }
   });
+  
+  // Send to additional port 4000 clients
+  additionalClients4000.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  });
+  
+  // Send to additional port 5000 clients
+  additionalClients5000.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  });
+  
   // Also log the broadcasted message to the server console
-  console.log(`[UI Broadcast] ${logMessage}`, data || "");
+  console.log(`[Multi-Port Broadcast] ${logMessage}`, data || "");
 }
 
 uiWss.on("connection", (ws) => {
   uiClients.add(ws);
-  console.log("UI WebSocket client connected");
-  broadcastToUIClients("New UI client connected to server logs.");
+  console.log("UI WebSocket client connected to port 3000");
+  broadcastToUIClients("New UI client connected to server logs (port 3000).");
 
   ws.on("close", () => {
     uiClients.delete(ws);
-    console.log("UI WebSocket client disconnected");
+    console.log("UI WebSocket client disconnected from port 3000");
   });
-  ws.on("error", (error) => console.error("UI WebSocket error:", error));
+  ws.on("error", (error) => console.error("UI WebSocket error (port 3000):", error));
 });
+
+// --- Additional WebSocket Server Event Handlers ---
+// Port 4000 WebSocket server
+additionalWss4000.on("listening", () => {
+  console.log(`Additional WebSocket server is listening on port ${additionalPort4000}`);
+  broadcastToUIClients(`Additional WebSocket server started on port ${additionalPort4000}`);
+});
+
+additionalWss4000.on("connection", (ws) => {
+  additionalClients4000.add(ws);
+  console.log("WebSocket client connected to port 4000");
+  broadcastToUIClients("New client connected to port 4000");
+
+  ws.on("close", () => {
+    additionalClients4000.delete(ws);
+    console.log("WebSocket client disconnected from port 4000");
+  });
+  ws.on("error", (error) => console.error("WebSocket error (port 4000):", error));
+});
+
+// Port 5000 WebSocket server
+additionalWss5000.on("listening", () => {
+  console.log(`Additional WebSocket server is listening on port ${additionalPort5000}`);
+  broadcastToUIClients(`Additional WebSocket server started on port ${additionalPort5000}`);
+});
+
+additionalWss5000.on("connection", (ws) => {
+  additionalClients5000.add(ws);
+  console.log("WebSocket client connected to port 5000");
+  broadcastToUIClients("New client connected to port 5000");
+
+  ws.on("close", () => {
+    additionalClients5000.delete(ws);
+    console.log("WebSocket client disconnected from port 5000");
+  });
+  ws.on("error", (error) => console.error("WebSocket error (port 5000):", error));
+});
+// --- End Additional WebSocket Server Event Handlers ---
 // --- End UI WebSocket Server Setup ---
 
 app.use(express.static(path.join(__dirname, "..", "public")));
@@ -248,5 +311,8 @@ server.listen(expressPort, () => {
   broadcastToUIClients(serverStartMsg);
   broadcastToUIClients(
     `Connect your Recall.ai bot WebSocket to: ws://YOUR_PUBLIC_IP_OR_NGROK_URL:${websocketPort}`
+  );
+  broadcastToUIClients(
+    `Additional WebSocket servers available at: ws://localhost:${additionalPort4000} and ws://localhost:${additionalPort5000}`
   );
 });
